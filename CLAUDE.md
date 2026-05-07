@@ -14,13 +14,14 @@ There is no build step and no test suite. Pi loads TypeScript extensions directl
 
 ## Release workflow
 
-1. Bump `version` in `package.json`.
-2. Commit and push to `main`.
-3. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. Create a GitHub Release from the tag (`gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`).
+1. Update `CHANGELOG.md` — move items from `[Unreleased]` into a new `[X.Y.Z] - YYYY-MM-DD` section.
+2. Bump `version` in `package.json`.
+3. Commit and push to `main`.
+4. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+5. Create a GitHub Release from the tag (`gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`).
    — The `.github/workflows/publish.yml` workflow triggers on `release: published`, **not** on tag push alone.
-5. The workflow runs `bun run check` then `npm publish --provenance --access public` via OIDC Trusted Publisher (no token needed).
-6. Verify with `gh run list --repo jvm/pi-skillful --limit 3`.
+6. The workflow runs `bun run check` then `npm publish --provenance --access public` via OIDC Trusted Publisher (no token needed).
+7. Verify with `gh run list --repo jvm/pi-skillful --limit 3`.
 
 ## Architecture
 

@@ -6,6 +6,18 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-07
+
+### Changed
+
+- Migrated peer dependencies from `@mariozechner` to `@earendil-works` scope (`@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` v0.74.0).
+
+## [0.2.1] - 2026-05-07
+
+### Fixed
+
+- Pruned stale hidden skills from config on session start to avoid referencing removed skills.
+
 ## [0.2.0] - 2026-05-07
 
 ### Added
