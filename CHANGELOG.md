@@ -6,9 +6,11 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-07
+
 ### Added
 
 - Inline `/skill:name` expansion anywhere in a prompt.
 - `/skillful` menu for global/project skill prompt visibility.
 - `skillful.hiddenSkills` settings support.
-- Startup skill-list annotations for visible vs hidden skills.
+- Startup `[Skills]` list highlights hidden skills in the error color.

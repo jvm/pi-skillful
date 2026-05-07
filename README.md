@@ -57,7 +57,7 @@ Open the menu with:
 
 The menu lists all loaded skills alphabetically. Toggle a skill off to save it in the active scope's `hiddenSkills` list. Use the Global/Project tabs to choose which settings file to edit.
 
-Pi's startup `[Skills]` list is also annotated: visible skills are marked with a green dot, and hidden skills are marked with a dim red dot.
+Pi's startup `[Skills]` list also highlights hidden skills in the error color (red in the default dark theme).
 
 When the project settings file contains only `skillful` settings and the project `hiddenSkills` list becomes empty, `.pi/settings.json` is deleted instead of leaving an empty settings file behind.
 

@@ -20,16 +20,34 @@ import {
 const SKILLS_SECTION_PATTERN = /\n\nThe following skills provide specialized instructions for specific tasks\.[\s\S]*?<\/available_skills>/;
 const SCOPES: SkillfulScope[] = ["global", "project"];
 const STORE_KEY = Symbol.for("pi-skillful.skillVisibilityStore");
-const STARTUP_SKILL_LIST_PATCH_KEY = Symbol.for("pi-skillful.startupSkillListPatchInstalled");
+const STARTUP_PATCH_KEY = Symbol.for("pi-skillful.startupPatchV2");
 
 interface SkillVisibilityStore {
   hiddenSkillsByCwd: Map<string, Set<string>>;
   lastHiddenSkills: Set<string>;
+  theme: Theme | null;
 }
 
-const skillVisibilityStore = (((globalThis as Record<PropertyKey, unknown>)[STORE_KEY] as SkillVisibilityStore | undefined) ??= {
+interface ExpandableTextLike {
+  getCollapsedText: () => string;
+  setText: (text: string) => void;
+}
+
+interface BoxLike {
+  children: unknown[];
+}
+
+interface InteractiveModeLike {
+  chatContainer?: BoxLike;
+  showLoadedResources?: (options?: unknown) => void;
+  session?: { resourceLoader?: { getSkills: () => { skills: Skill[]; diagnostics: unknown[] } } };
+  sessionManager?: { getCwd?: () => string };
+}
+
+const store = (((globalThis as Record<PropertyKey, unknown>)[STORE_KEY] as SkillVisibilityStore | undefined) ??= {
   hiddenSkillsByCwd: new Map<string, Set<string>>(),
   lastHiddenSkills: new Set<string>(),
+  theme: null,
 }) as SkillVisibilityStore;
 
 interface SkillListItem {
@@ -41,6 +59,7 @@ export default function skillVisibility(pi: ExtensionAPI) {
   installStartupSkillListPatch();
 
   pi.on("session_start", async (_event, ctx) => {
+    store.theme = ctx.ui.theme;
     await refreshHiddenSkillCache(ctx.cwd);
   });
 
@@ -92,32 +111,23 @@ export default function skillVisibility(pi: ExtensionAPI) {
 
 async function refreshHiddenSkillCache(cwd: string): Promise<Set<string>> {
   const hidden = await readEffectiveHiddenSkills(cwd);
-  skillVisibilityStore.hiddenSkillsByCwd.set(cwd, hidden);
-  skillVisibilityStore.lastHiddenSkills = hidden;
+  store.hiddenSkillsByCwd.set(cwd, hidden);
+  store.lastHiddenSkills = hidden;
   return hidden;
 }
 
+// Must patch the real prototype from pi's module — separate module resolutions have distinct class identities.
 function installStartupSkillListPatch(): void {
-  type StartupResourceLoader = {
-    getSkills: () => { skills: Skill[]; diagnostics: unknown[] };
-  };
-  type InteractiveModeWithStartupResources = {
-    showLoadedResources?: (options?: unknown) => void;
-    session?: { resourceLoader?: StartupResourceLoader };
-    sessionManager?: { getCwd?: () => string };
-  };
+  const realPrototype = (InteractiveMode as unknown as { prototype: InteractiveModeLike }).prototype;
+  if (!realPrototype) return;
 
-  const prototype = (InteractiveMode as unknown as { prototype: InteractiveModeWithStartupResources }).prototype;
-  const patchState = prototype as InteractiveModeWithStartupResources & Record<PropertyKey, unknown>;
-  if (patchState[STARTUP_SKILL_LIST_PATCH_KEY]) return;
+  const patchState = realPrototype as Record<PropertyKey, unknown>;
+  if (patchState[STARTUP_PATCH_KEY]) return;
 
-  const original = prototype.showLoadedResources;
+  const original = realPrototype.showLoadedResources;
   if (typeof original !== "function") return;
 
-  prototype.showLoadedResources = function showLoadedResourcesWithSkillfulVisibility(
-    this: InteractiveModeWithStartupResources,
-    options?: unknown,
-  ): void {
+  realPrototype.showLoadedResources = function (this: InteractiveModeLike, options?: unknown): void {
     const loader = this.session?.resourceLoader;
     const originalGetSkills = loader?.getSkills;
     if (!loader || typeof originalGetSkills !== "function") {
@@ -126,31 +136,48 @@ function installStartupSkillListPatch(): void {
     }
 
     const cwd = this.sessionManager?.getCwd?.();
-    const hidden = (cwd ? skillVisibilityStore.hiddenSkillsByCwd.get(cwd) : undefined) ?? skillVisibilityStore.lastHiddenSkills;
 
+    let rawSkillNames: string[] = [];
     loader.getSkills = () => {
       const result = originalGetSkills.call(loader);
-      return {
-        ...result,
-        skills: result.skills.map((skill) => ({
-          ...skill,
-          name: formatStartupSkillName(skill.name, hidden.has(skill.name)),
-        })),
-      };
+      rawSkillNames = result.skills.map((s) => normalizeSkillName(s.name));
+      return result;
     };
+
+    const childrenBefore = this.chatContainer?.children.length ?? 0;
 
     try {
       original.call(this, options);
     } finally {
       loader.getSkills = originalGetSkills;
     }
+
+    if (rawSkillNames.length === 0 || !cwd || !this.chatContainer) return;
+
+    const children = this.chatContainer.children;
+    for (let i = childrenBefore; i < children.length; i++) {
+      const child = children[i] as ExpandableTextLike | undefined;
+      if (!child || typeof child.getCollapsedText !== "function") continue;
+      const collapsed = child.getCollapsedText();
+      if (!collapsed.includes("[Skills]")) continue;
+
+      child.getCollapsedText = () => buildColorizedSkillList(rawSkillNames, store.lastHiddenSkills, store.theme);
+      child.setText(child.getCollapsedText());
+      break;
+    }
   };
 
-  patchState[STARTUP_SKILL_LIST_PATCH_KEY] = true;
+  patchState[STARTUP_PATCH_KEY] = true;
 }
 
-function formatStartupSkillName(name: string, hidden: boolean): string {
-  return hidden ? `${name} \x1b[31;2m●\x1b[22;39m` : `${name} \x1b[32m●\x1b[39m`;
+function buildColorizedSkillList(names: string[], hidden: Set<string>, theme: Theme | null): string {
+  const sorted = [...names].sort((a, b) => a.localeCompare(b));
+  if (!theme) {
+    return `[Skills]\n  ${sorted.join(", ")}`;
+  }
+  const header = theme.fg("mdHeading", "[Skills]");
+  const parts = sorted.map((n) => (hidden.has(n) ? theme.fg("error", n) : theme.fg("dim", n)));
+  return `${header}\n  ${parts.join(", ")}`;
 }
 
 function getSkillItems(pi: ExtensionAPI): SkillListItem[] {
