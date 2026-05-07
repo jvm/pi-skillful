@@ -1,6 +1,6 @@
 {
   "name": "pi-skillful",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Pi package with skill invocation and visibility improvements.",
   "type": "module",
   "license": "MIT",
@@ -35,12 +35,12 @@
     "CODE_OF_CONDUCT.md"
   ],
   "peerDependencies": {
-    "@mariozechner/pi-coding-agent": "*",
-    "@mariozechner/pi-tui": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
-    "@mariozechner/pi-coding-agent": "^0.73.0",
-    "@mariozechner/pi-tui": "^0.73.0",
+    "@earendil-works/pi-coding-agent": "^0.74.0",
+    "@earendil-works/pi-tui": "^0.74.0",
     "@types/node": "^25.6.0",
     "typescript": "^6.0.3"
   },

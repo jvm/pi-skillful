@@ -6,8 +6,8 @@ import {
   type ExtensionAPI,
   type Skill,
   type Theme,
-} from "@mariozechner/pi-coding-agent";
-import { type Component, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth, type TUI } from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-coding-agent";
+import { type Component, Key, matchesKey, type SettingItem, SettingsList, truncateToWidth, type TUI } from "@earendil-works/pi-tui";
 import {
   normalizeSkillName,
   normalizeSkillNames,
