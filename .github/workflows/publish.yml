@@ -29,5 +29,12 @@ jobs:
       - name: Type check
         run: bun run check
 
+      - name: Debug auth
+        run: |
+          echo "npmrc contents:"
+          cat $NPM_CONFIG_USERCONFIG | sed 's/_authToken=.*/_authToken=REDACTED/'
+          echo "npm whoami:"
+          npm whoami || echo "whoami FAILED - token is invalid"
+
       - name: Publish
         run: npm publish --access public
