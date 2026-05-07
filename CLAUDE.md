@@ -12,6 +12,16 @@ bun run pack:dry-run # preview what would be published
 
 There is no build step and no test suite. Pi loads TypeScript extensions directly via its built-in extension loader.
 
+## Release workflow
+
+1. Bump `version` in `package.json`.
+2. Commit and push to `main`.
+3. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Create a GitHub Release from the tag (`gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`).
+   — The `.github/workflows/publish.yml` workflow triggers on `release: published`, **not** on tag push alone.
+5. The workflow runs `bun run check` then `npm publish --provenance --access public` via OIDC Trusted Publisher (no token needed).
+6. Verify with `gh run list --repo jvm/pi-skillful --limit 3`.
+
 ## Architecture
 
 `pi-skillful` is a [Pi](https://github.com/badlogic/pi-mono) package. Pi packages are source-distributed TypeScript that Pi loads at runtime without compilation.
@@ -23,6 +33,6 @@ There is no build step and no test suite. Pi loads TypeScript extensions directl
 - `src/config.ts` — reads and writes the `skillful.hiddenSkills` list from Pi's settings files (`~/.pi/agent/settings.json` for global, `.pi/settings.json` for project). Effective hidden skills are the union of both scopes. When the project scope's `hiddenSkills` becomes empty, the project settings file is deleted entirely.
 - `src/skills.ts` — utilities for extracting `SkillCommandInfo` from Pi commands and reading a skill's `SKILL.md` into a `<skill>` XML block (with frontmatter stripped).
 - `src/extensions/inline-skill-invocation.ts` — hooks `pi.on("input")` to expand `/skill:name` markers anywhere in the prompt (not just at the start). Replaces each known marker with the skill's `SKILL.md` content before Pi's own expansion runs.
-- `src/extensions/skill-visibility.ts` — hooks `pi.on("before_agent_start")` to remove hidden skills from the `<available_skills>` system prompt section by re-running `formatSkillsForPrompt` with `disableModelInvocation: true` on hidden entries. Also registers the `/skillful` command, which opens a TUI menu (`SkillfulVisibilityMenu`) backed by `SettingsList` from `@mariozechner/pi-tui`. The startup `[Skills]` list is colorized by monkey-patching `InteractiveMode.prototype.showLoadedResources` — the patch intercepts the `ExpandableText` for `[Skills]` and replaces its `getCollapsedText` with a closure that reads `store.lastHiddenSkills` lazily, coloring visible skills dim and hidden skills in the error color. The patch uses `Symbol.for("pi-skillful.startupPatchV2")` on the prototype to guard against double-patching across hot reloads; the singleton store is keyed at `Symbol.for("pi-skillful.skillVisibilityStore")` on `globalThis`.
+- `src/extensions/skill-visibility.ts` — hooks `pi.on("before_agent_start")` to remove hidden skills from the `<available_skills>` system prompt section by re-running `formatSkillsForPrompt` with `disableModelInvocation: true` on hidden entries. Also registers the `/skillful` command, which opens a TUI menu (`SkillfulVisibilityMenu`) backed by `SettingsList` from `@earendil-works/pi-tui`. The startup `[Skills]` list is colorized by monkey-patching `InteractiveMode.prototype.showLoadedResources` — the patch intercepts the `ExpandableText` for `[Skills]` and replaces its `getCollapsedText` with a closure that reads `store.lastHiddenSkills` lazily, coloring visible skills dim and hidden skills in the error color. The patch uses `Symbol.for("pi-skillful.startupPatchV2")` on the prototype to guard against double-patching across hot reloads; the singleton store is keyed at `Symbol.for("pi-skillful.skillVisibilityStore")` on `globalThis`.
 
-**Peer dependencies**: `@mariozechner/pi-coding-agent` (provides `ExtensionAPI`, `InteractiveMode`, `formatSkillsForPrompt`, `Skill`, `Theme`, etc.) and `@mariozechner/pi-tui` (provides `TUI`, `Component`, `SettingsList`, `DynamicBorder`, `Key`, etc.). Both are also listed as `devDependencies` for type-checking.
+**Peer dependencies**: `@earendil-works/pi-coding-agent` (provides `ExtensionAPI`, `InteractiveMode`, `formatSkillsForPrompt`, `Skill`, `Theme`, etc.) and `@earendil-works/pi-tui` (provides `TUI`, `Component`, `SettingsList`, `DynamicBorder`, `Key`, etc.). Both are also listed as `devDependencies` for type-checking.
