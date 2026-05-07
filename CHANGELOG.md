@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-05-07
+
+### Fixed
+
+- Flattened extension entry point from `extensions/pi-skillful/index.ts` to `extensions/index.ts` so Pi displays the extension as `pi-skillful` instead of `pi-skillful:pi-skillful` in the startup banner.
+
 ## [0.2.2] - 2026-05-07
 
 ### Changed
