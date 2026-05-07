@@ -27,6 +27,7 @@
   "files": [
     "extensions",
     "src",
+    "banner.png",
     "README.md",
     "LICENSE",
     "CHANGELOG.md",

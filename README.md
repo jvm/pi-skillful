@@ -1,3 +1,7 @@
+<p>
+  <img src="https://raw.githubusercontent.com/jvm/pi-skillful/main/banner.png" alt="pi-skillful" width="1100">
+</p>
+
 # pi-skillful
 
 `pi-skillful` is a [Pi](https://github.com/badlogic/pi-mono) package that improves skill workflows.
