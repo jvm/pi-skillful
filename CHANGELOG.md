@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-05-09
+
+### Added
+
+- Added session-scoped skill toggle slots with configurable modifier-number shortcuts and prompt-editor top-border status.
+
 ## [0.2.4] - 2026-05-09
 
 ### Changed

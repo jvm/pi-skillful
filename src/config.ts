@@ -3,9 +3,28 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 export type SkillfulScope = "global" | "project";
+export type SkillToggleSlot = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9";
+export const SUPPORTED_TOGGLE_MODIFIERS = [
+  "alt",
+  "ctrl",
+  "ctrl+shift",
+  "alt+shift",
+  "ctrl+alt",
+  "ctrl+alt+shift",
+] as const;
+export type SkillToggleModifier = (typeof SUPPORTED_TOGGLE_MODIFIERS)[number];
 
-export interface SkillfulSettings {
+export interface SkillToggleConfig {
+  toggleSlots: Partial<Record<SkillToggleSlot, string>>;
+  toggleModifier: SkillToggleModifier;
+}
+
+export interface SkillfulSettings extends SkillToggleConfig {
   hiddenSkills: string[];
+}
+
+export interface EffectiveSkillfulSettings extends SkillfulSettings {
+  hiddenSkillSet: Set<string>;
 }
 
 interface PiSettingsDocument {
@@ -14,6 +33,10 @@ interface PiSettingsDocument {
 }
 
 export const SKILLFUL_SETTINGS_KEY = "skillful";
+export const SKILL_TOGGLE_SLOTS: SkillToggleSlot[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
+export const DEFAULT_TOGGLE_MODIFIER: SkillToggleModifier = "alt";
+
+const SUPPORTED_TOGGLE_MODIFIERS_SET: ReadonlySet<string> = new Set(SUPPORTED_TOGGLE_MODIFIERS);
 
 export function globalSettingsPath(): string {
   return join(homedir(), ".pi", "agent", "settings.json");
@@ -42,6 +65,33 @@ export function normalizeSkillNames(names: Iterable<string>): string[] {
   );
 }
 
+export function normalizeToggleSlots(value: unknown): Partial<Record<SkillToggleSlot, string>> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const result: Partial<Record<SkillToggleSlot, string>> = {};
+  const seenSkillNames = new Set<string>();
+  const source = value as Record<string, unknown>;
+
+  for (const slot of SKILL_TOGGLE_SLOTS) {
+    const rawName = source[slot];
+    if (typeof rawName !== "string") continue;
+
+    const name = normalizeSkillName(rawName);
+    if (!name || seenSkillNames.has(name)) continue;
+
+    result[slot] = name;
+    seenSkillNames.add(name);
+  }
+
+  return result;
+}
+
+export function normalizeToggleModifier(value: unknown): SkillToggleModifier {
+  if (typeof value !== "string") return DEFAULT_TOGGLE_MODIFIER;
+  const normalized = value.trim().toLowerCase();
+  return SUPPORTED_TOGGLE_MODIFIERS_SET.has(normalized) ? (normalized as SkillToggleModifier) : DEFAULT_TOGGLE_MODIFIER;
+}
+
 async function readSettingsDocument(path: string): Promise<PiSettingsDocument> {
   try {
     const raw = await readFile(path, "utf-8");
@@ -58,12 +108,16 @@ async function readSettingsDocument(path: string): Promise<PiSettingsDocument> {
 export async function readSkillfulSettings(path: string): Promise<SkillfulSettings> {
   const settings = await readSettingsDocument(path);
   const skillful = settings[SKILLFUL_SETTINGS_KEY];
-  const hiddenSkills =
-    skillful && typeof skillful === "object" && Array.isArray(skillful.hiddenSkills)
-      ? skillful.hiddenSkills.filter((name): name is string => typeof name === "string")
-      : [];
+  const skillfulObject = skillful && typeof skillful === "object" && !Array.isArray(skillful) ? skillful : {};
+  const hiddenSkills = Array.isArray(skillfulObject.hiddenSkills)
+    ? skillfulObject.hiddenSkills.filter((name): name is string => typeof name === "string")
+    : [];
 
-  return { hiddenSkills: normalizeSkillNames(hiddenSkills) };
+  return {
+    hiddenSkills: normalizeSkillNames(hiddenSkills),
+    toggleSlots: normalizeToggleSlots(skillfulObject.toggleSlots),
+    toggleModifier: normalizeToggleModifier(skillfulObject.toggleModifier),
+  };
 }
 
 export async function readScopedSkillfulSettings(cwd: string): Promise<Record<SkillfulScope, SkillfulSettings>> {
@@ -79,6 +133,19 @@ export async function readEffectiveHiddenSkills(cwd: string): Promise<Set<string
   return new Set([...scoped.global.hiddenSkills, ...scoped.project.hiddenSkills]);
 }
 
+export async function readEffectiveSkillfulSettings(cwd: string): Promise<EffectiveSkillfulSettings> {
+  const scoped = await readScopedSkillfulSettings(cwd);
+  const hiddenSkills = normalizeSkillNames([...scoped.global.hiddenSkills, ...scoped.project.hiddenSkills]);
+  const toggleSlots = normalizeToggleSlots({ ...scoped.global.toggleSlots, ...scoped.project.toggleSlots });
+  return {
+    hiddenSkills,
+    hiddenSkillSet: new Set(hiddenSkills),
+    toggleSlots,
+    toggleModifier:
+      scoped.project.toggleModifier !== DEFAULT_TOGGLE_MODIFIER ? scoped.project.toggleModifier : scoped.global.toggleModifier,
+  };
+}
+
 export async function writeHiddenSkills(
   scope: SkillfulScope,
   cwd: string,
@@ -88,25 +155,32 @@ export async function writeHiddenSkills(
   const document = await readSettingsDocument(path);
   const updated = normalizeSkillNames(hiddenSkills);
 
-  if (updated.length === 0) {
-    delete document[SKILLFUL_SETTINGS_KEY];
-  } else {
-    document[SKILLFUL_SETTINGS_KEY] = {
-      ...(document[SKILLFUL_SETTINGS_KEY] && typeof document[SKILLFUL_SETTINGS_KEY] === "object"
-        ? document[SKILLFUL_SETTINGS_KEY]
-        : {}),
-      hiddenSkills: updated,
-    };
-  }
+  const existingSkillful =
+    document[SKILLFUL_SETTINGS_KEY] && typeof document[SKILLFUL_SETTINGS_KEY] === "object" && !Array.isArray(document[SKILLFUL_SETTINGS_KEY])
+      ? (document[SKILLFUL_SETTINGS_KEY] as Record<string, unknown>)
+      : {};
+  const nextSkillful = { ...existingSkillful };
+
+  if (updated.length === 0) delete nextSkillful.hiddenSkills;
+  else nextSkillful.hiddenSkills = updated;
+
+  if (Object.keys(nextSkillful).length === 0) delete document[SKILLFUL_SETTINGS_KEY];
+  else document[SKILLFUL_SETTINGS_KEY] = nextSkillful as Partial<SkillfulSettings>;
+
+  const result: SkillfulSettings = {
+    hiddenSkills: updated,
+    toggleSlots: normalizeToggleSlots(nextSkillful.toggleSlots),
+    toggleModifier: normalizeToggleModifier(nextSkillful.toggleModifier),
+  };
 
   if (scope === "project" && Object.keys(document).length === 0) {
     await unlinkIfExists(path);
-    return { hiddenSkills: updated };
+    return result;
   }
 
   await mkdir(dirname(path), { recursive: true });
   await writeFile(path, `${JSON.stringify(document, null, 2)}\n`, "utf-8");
-  return { hiddenSkills: updated };
+  return result;
 }
 
 export async function updateHiddenSkills(

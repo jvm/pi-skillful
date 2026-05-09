@@ -6,10 +6,11 @@
 
 `pi-skillful` is a [Pi](https://github.com/badlogic/pi-mono) package that improves skill workflows.
 
-It currently provides two extensions:
+It currently provides three extensions:
 
 - **Inline skill invocation**: invoke one or more skills anywhere in a prompt with `/skill:name`.
 - **Skill prompt visibility**: choose which skills are hidden from the model's automatic skill-discovery prompt, while keeping them explicitly invokable and visibly marked in Pi's startup skill list.
+- **Session skill toggles**: assign up to nine skills to number slots and toggle model visibility while writing a prompt.
 
 > [!WARNING]
 > Pi packages can execute arbitrary code through extensions. Review package source before installing any third-party Pi package.
@@ -64,6 +65,30 @@ The menu lists all loaded skills alphabetically. Toggle a skill off to save it i
 Pi's startup `[Skills]` list also highlights hidden skills in the error color (red in the default dark theme).
 
 When the project settings file contains only `skillful` settings and the project `hiddenSkills` list becomes empty, `.pi/settings.json` is deleted instead of leaving an empty settings file behind.
+
+### Session skill toggles
+
+Assign skills to up to nine prompt-editor slots with JSON settings:
+
+```json
+{
+  "skillful": {
+    "hiddenSkills": ["pdf", "xlsx"],
+    "toggleSlots": {
+      "1": "typescript",
+      "2": "code-review",
+      "3": "git"
+    },
+    "toggleModifier": "alt"
+  }
+}
+```
+
+Configured slots appear on the prompt editor's top border as `N skill-name`. Long names are truncated per slot when needed so all configured slot numbers remain visible. Active slots use the theme accent color; inactive slots use the muted color. Press `alt+1` through `alt+9` by default to toggle a slot for the current session only.
+
+`toggleModifier` defaults to `"alt"`. Supported values are `"alt"`, `"ctrl"`, `"ctrl+shift"`, `"alt+shift"`, `"ctrl+alt"`, and `"ctrl+alt+shift"`. Change it if your terminal reserves `alt+number` shortcuts.
+
+On session start, non-hidden skills are active and hidden skills are inactive. Starting, resuming, or forking a session resets toggle state from settings. Inline `/skill:name` invocation remains explicit and works even when that skill is inactive.
 
 ## Installation
 

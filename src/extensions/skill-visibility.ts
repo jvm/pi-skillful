@@ -1,6 +1,5 @@
 import {
   DynamicBorder,
-  formatSkillsForPrompt,
   getSettingsListTheme,
   InteractiveMode,
   type ExtensionAPI,
@@ -16,8 +15,8 @@ import {
   type SkillfulScope,
   writeHiddenSkills,
 } from "../config.js";
-
-const SKILLS_SECTION_PATTERN = /\n\nThe following skills provide specialized instructions for specific tasks\.[\s\S]*?<\/available_skills>/;
+import { replaceSkillsSection } from "../skill-prompt.js";
+import { listLoadedSkills, type LoadedSkillInfo } from "../skills.js";
 const SCOPES: SkillfulScope[] = ["global", "project"];
 const STORE_KEY = Symbol.for("pi-skillful.skillVisibilityStore");
 const STARTUP_PATCH_KEY = Symbol.for("pi-skillful.startupPatchV2");
@@ -50,10 +49,7 @@ const store = (((globalThis as Record<PropertyKey, unknown>)[STORE_KEY] as Skill
   theme: null,
 }) as SkillVisibilityStore;
 
-interface SkillListItem {
-  name: string;
-  description: string;
-}
+type SkillListItem = LoadedSkillInfo;
 
 export default function skillVisibility(pi: ExtensionAPI) {
   installStartupSkillListPatch();
@@ -70,10 +66,9 @@ export default function skillVisibility(pi: ExtensionAPI) {
     const filteredSkills: Skill[] = event.systemPromptOptions.skills.map((skill) =>
       hidden.has(skill.name) ? { ...skill, disableModelInvocation: true } : skill,
     );
-    const replacement = formatSkillsForPrompt(filteredSkills);
-
-    if (!SKILLS_SECTION_PATTERN.test(event.systemPrompt)) return;
-    return { systemPrompt: event.systemPrompt.replace(SKILLS_SECTION_PATTERN, replacement) };
+    const systemPrompt = replaceSkillsSection(event.systemPrompt, filteredSkills);
+    if (!systemPrompt) return;
+    return { systemPrompt };
   });
 
   pi.registerCommand("skillful", {
@@ -118,8 +113,7 @@ async function pruneStaleHiddenSkills(pi: ExtensionAPI, cwd: string): Promise<vo
       const current = scoped[scope].hiddenSkills;
       const pruned = current.filter((name) => installedNames.has(name));
       if (pruned.length < current.length) {
-        await writeHiddenSkills(scope, cwd, pruned);
-        scoped[scope] = { hiddenSkills: pruned };
+        scoped[scope] = await writeHiddenSkills(scope, cwd, pruned);
       }
     }),
   );
@@ -201,18 +195,7 @@ function buildColorizedSkillList(names: string[], hidden: Set<string>, theme: Th
 }
 
 function getSkillItems(pi: ExtensionAPI): SkillListItem[] {
-  const byName = new Map<string, SkillListItem>();
-  for (const command of pi.getCommands()) {
-    if (command.source !== "skill") continue;
-    const name = normalizeSkillName(command.name);
-    if (!name) continue;
-    byName.set(name, {
-      name,
-      description: command.description ?? "",
-    });
-  }
-
-  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return listLoadedSkills(pi.getCommands());
 }
 
 class SkillfulVisibilityMenu implements Component {

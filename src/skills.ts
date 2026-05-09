@@ -1,10 +1,33 @@
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
+import { normalizeSkillName } from "./config.js";
 
 export interface SkillCommandInfo {
   name: string;
   path: string;
   baseDir: string;
+}
+
+export interface LoadedSkillInfo {
+  name: string;
+  description: string;
+}
+
+interface CommandLike {
+  name: string;
+  source: string;
+  description?: string;
+}
+
+export function listLoadedSkills(commands: Iterable<CommandLike>): LoadedSkillInfo[] {
+  const byName = new Map<string, LoadedSkillInfo>();
+  for (const command of commands) {
+    if (command.source !== "skill") continue;
+    const name = normalizeSkillName(command.name);
+    if (!name) continue;
+    byName.set(name, { name, description: command.description ?? "" });
+  }
+  return Array.from(byName.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function stripFrontmatter(markdown: string): string {
