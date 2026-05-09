@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-05-09
+
+### Changed
+
+- Switched local development, CI, and publishing workflows from Bun to npm for consistency with Pi package conventions.
+- Made the Pi extension entry path explicit as `./extensions/index.ts`.
+
 ## [0.2.3] - 2026-05-07
 
 ### Fixed
