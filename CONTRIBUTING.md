@@ -5,8 +5,8 @@ Thanks for your interest in contributing to `pi-skillful`.
 ## Development setup
 
 ```bash
-bun install
-bun run check
+npm install
+npm run check
 ```
 
 The package is source-distributed: Pi loads the TypeScript extension files directly. There is no build step for runtime use.
@@ -34,8 +34,8 @@ pi -e /path/to/pi-skillful/extensions/pi-skillful
 
 Before opening a pull request:
 
-- Run `bun run check`.
-- Run `bun run pack:dry-run` and confirm the package contents are intentional.
+- Run `npm run check`.
+- Run `npm run pack:dry-run` and confirm the package contents are intentional.
 - Update `README.md` if user-facing behavior changes.
 - Update `CHANGELOG.md` for notable changes.
 - Keep examples and paths generic; do not commit machine-specific paths or credentials.

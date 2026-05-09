@@ -11,11 +11,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: npm ci
       - name: Type check
-        run: bun run check
+        run: npm run check
       - name: Verify package contents
-        run: bun run pack:dry-run
+        run: npm run pack:dry-run

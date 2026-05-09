@@ -4,8 +4,8 @@
 
 ## Testing
 
-- [ ] `bun run check`
-- [ ] `bun run pack:dry-run`
+- [ ] `npm run check`
+- [ ] `npm run pack:dry-run`
 
 ## Checklist
 

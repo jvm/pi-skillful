@@ -21,7 +21,7 @@
   ],
   "pi": {
     "extensions": [
-      "./extensions"
+      "./extensions/index.ts"
     ]
   },
   "files": [
@@ -47,6 +47,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "pack:dry-run": "npm pack --dry-run"
   },
   "publishConfig": {

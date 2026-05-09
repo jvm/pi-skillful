@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-bun install          # install deps
-bun run check        # type-check (tsc --noEmit) — the only lint/verify step
-bun run pack:dry-run # preview what would be published
+npm install          # install deps
+npm run check        # type-check (tsc --noEmit) — the only lint/verify step
+npm run pack:dry-run # preview what would be published
 ```
 
 There is no build step and no test suite. Pi loads TypeScript extensions directly via its built-in extension loader.
@@ -20,14 +20,14 @@ There is no build step and no test suite. Pi loads TypeScript extensions directl
 4. Create and push a git tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. Create a GitHub Release from the tag (`gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`).
    — The `.github/workflows/publish.yml` workflow triggers on `release: published`, **not** on tag push alone.
-6. The workflow runs `bun run check` then `npm publish --provenance --access public` via OIDC Trusted Publisher (no token needed).
+6. The workflow runs `npm run check` then `npm publish --provenance --access public` via OIDC Trusted Publisher (no token needed).
 7. Verify with `gh run list --repo jvm/pi-skillful --limit 3`.
 
 ## Architecture
 
 `pi-skillful` is a [Pi](https://github.com/badlogic/pi-mono) package. Pi packages are source-distributed TypeScript that Pi loads at runtime without compilation.
 
-**Entry point**: `extensions/pi-skillful/index.ts` — the file Pi resolves from the `pi.extensions` array in `package.json`. It imports and registers both features against the `ExtensionAPI`.
+**Entry point**: `extensions/index.ts` — the file Pi resolves from the `pi.extensions` array in `package.json`. It imports and registers both features against the `ExtensionAPI`.
 
 **Shared modules** live in `src/`:
 

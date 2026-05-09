@@ -112,14 +112,14 @@ This package is source-distributed. Pi loads the TypeScript extensions directly 
 Requirements:
 
 - Node.js >= 20.6.0
-- Bun for local development commands
+- npm for local development commands
 
 Common commands:
 
 ```bash
-bun install
-bun run check
-bun run pack:dry-run
+npm install
+npm run check
+npm run pack:dry-run
 ```
 
 ## Contributing
