@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-05-10
+
+### Added
+
+- Install/update telemetry ping to `mocito.dev`, gated by Pi telemetry/offline settings and deduplicated per package version.
+
 ## [0.3.0] - 2026-05-09
 
 ### Added
