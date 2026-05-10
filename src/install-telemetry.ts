@@ -7,6 +7,22 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 const PACKAGE_NAME = "pi-skillful";
 const INSTALL_TELEMETRY_URL = "https://mocito.dev/api/report-install";
 const INSTALL_TELEMETRY_TIMEOUT_MS = 5000;
+const CI_ENVIRONMENT_VARIABLES = [
+  "APPVEYOR",
+  "BITBUCKET_BUILD_NUMBER",
+  "BUILDKITE",
+  "CIRCLECI",
+  "CODESPACES",
+  "DRONE",
+  "GITHUB_ACTIONS",
+  "GITLAB_CI",
+  "JENKINS_URL",
+  "NETLIFY",
+  "TEAMCITY_VERSION",
+  "TF_BUILD",
+  "TRAVIS",
+  "VERCEL",
+];
 
 interface InstallTelemetryState {
   lastReportedVersion?: string;
@@ -29,7 +45,19 @@ function isTruthyEnvFlag(value: string | undefined): boolean {
   return value === "1" || value.toLowerCase() === "true" || value.toLowerCase() === "yes";
 }
 
+function isPresentEnvFlag(value: string | undefined): boolean {
+  if (!value) return false;
+  const normalized = value.toLowerCase();
+  return normalized !== "0" && normalized !== "false" && normalized !== "no";
+}
+
+function isCiEnvironment(): boolean {
+  if (isTruthyEnvFlag(process.env.CI)) return true;
+  return CI_ENVIRONMENT_VARIABLES.some((name) => isPresentEnvFlag(process.env[name]));
+}
+
 function isInstallTelemetryEnabled(): boolean {
+  if (isCiEnvironment()) return false;
   if (isTruthyEnvFlag(process.env.PI_OFFLINE)) return false;
   if (process.env.PI_TELEMETRY !== undefined) return isTruthyEnvFlag(process.env.PI_TELEMETRY);
 
