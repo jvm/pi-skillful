@@ -17,6 +17,7 @@ import {
 } from "../config.js";
 import { replaceSkillsSection } from "../skill-prompt.js";
 import { listLoadedSkills, type LoadedSkillInfo } from "../skills.js";
+import { hasActiveSessionSkillToggles } from "./session-skill-toggles.js";
 const SCOPES: SkillfulScope[] = ["global", "project"];
 const STORE_KEY = Symbol.for("pi-skillful.skillVisibilityStore");
 const STARTUP_PATCH_KEY = Symbol.for("pi-skillful.startupPatchV2");
@@ -60,6 +61,8 @@ export default function skillVisibility(pi: ExtensionAPI) {
   });
 
   pi.on("before_agent_start", async (event, ctx) => {
+    if (hasActiveSessionSkillToggles()) return;
+
     const hidden = await refreshHiddenSkillCache(ctx.cwd);
     if (hidden.size === 0 || !event.systemPromptOptions.skills?.length) return;
 

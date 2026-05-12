@@ -114,6 +114,10 @@ function createEmptyState(): SessionToggleState {
   };
 }
 
+export function hasActiveSessionSkillToggles(): boolean {
+  return state.slots.length > 0;
+}
+
 function isSkillActive(skillName: string): boolean {
   return state.activeBySkill.get(skillName) ?? !state.hiddenSkills.has(skillName);
 }

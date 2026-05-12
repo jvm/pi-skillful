@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-05-12
+
+### Fixed
+
+- Fixed session skill toggles so hidden skills toggled active are included in the next system prompt.
+
 ## [0.3.2] - 2026-05-10
 
 ### Fixed
