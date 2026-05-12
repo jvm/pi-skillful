@@ -12,12 +12,16 @@ import {
   normalizeSkillNames,
   readEffectiveHiddenSkills,
   readScopedSkillfulSettings,
+  SKILL_TOGGLE_SLOTS,
   type SkillfulScope,
+  type SkillToggleSlot,
   writeHiddenSkills,
+  writeProjectSkillfulOverride,
+  writeToggleSlots,
 } from "../config.js";
 import { replaceSkillsSection } from "../skill-prompt.js";
 import { listLoadedSkills, type LoadedSkillInfo } from "../skills.js";
-import { hasActiveSessionSkillToggles } from "./session-skill-toggles.js";
+import { hasActiveSessionSkillToggles, refreshSessionSkillToggles } from "./session-skill-toggles.js";
 const SCOPES: SkillfulScope[] = ["global", "project"];
 const STORE_KEY = Symbol.for("pi-skillful.skillVisibilityStore");
 const STARTUP_PATCH_KEY = Symbol.for("pi-skillful.startupPatchV2");
@@ -51,6 +55,30 @@ const store = (((globalThis as Record<PropertyKey, unknown>)[STORE_KEY] as Skill
 }) as SkillVisibilityStore;
 
 type SkillListItem = LoadedSkillInfo;
+type HiddenSkillsByScope = Record<SkillfulScope, Set<string>>;
+type ToggleSlotsByScope = Record<SkillfulScope, Partial<Record<SkillToggleSlot, string>>>;
+type DefinedByScope = Record<SkillfulScope, boolean>;
+
+interface SkillfulVisibilityMenuOptions {
+  cwd: string;
+  skills: SkillListItem[];
+  hiddenByScope: HiddenSkillsByScope;
+  hiddenSkillsDefinedByScope: DefinedByScope;
+  toggleSlotsByScope: ToggleSlotsByScope;
+  toggleSlotsDefinedByScope: DefinedByScope;
+  theme: Theme;
+  tui: TUI;
+  notify: (message: string, type?: "info" | "warning" | "error") => void;
+  onToggleSlotsChanged: () => Promise<void>;
+  done: () => void;
+}
+
+interface SettingsListSelectionView {
+  filteredItems?: SettingItem[];
+  items?: SettingItem[];
+  selectedIndex?: number;
+  submenuComponent?: unknown;
+}
 
 export default function skillVisibility(pi: ExtensionAPI) {
   installStartupSkillListPatch();
@@ -97,9 +125,22 @@ export default function skillVisibility(pi: ExtensionAPI) {
             global: new Set(scoped.global.hiddenSkills),
             project: new Set(scoped.project.hiddenSkills),
           },
+          hiddenSkillsDefinedByScope: {
+            global: scoped.global.hiddenSkillsDefined,
+            project: scoped.project.hiddenSkillsDefined,
+          },
+          toggleSlotsByScope: {
+            global: { ...scoped.global.toggleSlots },
+            project: { ...scoped.project.toggleSlots },
+          },
+          toggleSlotsDefinedByScope: {
+            global: scoped.global.toggleSlotsDefined,
+            project: scoped.project.toggleSlotsDefined,
+          },
           theme,
           tui,
           notify: (message, type) => ctx.ui.notify(message, type),
+          onToggleSlotsChanged: () => refreshSessionSkillToggles(pi, ctx.cwd, ctx.ui),
           done,
         }),
       );
@@ -113,15 +154,15 @@ async function pruneStaleHiddenSkills(pi: ExtensionAPI, cwd: string): Promise<vo
 
   await Promise.all(
     SCOPES.map(async (scope) => {
-      const current = scoped[scope].hiddenSkills;
-      const pruned = current.filter((name) => installedNames.has(name));
-      if (pruned.length < current.length) {
-        scoped[scope] = await writeHiddenSkills(scope, cwd, pruned);
+      const currentHidden = scoped[scope].hiddenSkills;
+      const prunedHidden = currentHidden.filter((name) => installedNames.has(name));
+      if (prunedHidden.length < currentHidden.length) {
+        scoped[scope] = await writeHiddenSkills(scope, cwd, prunedHidden);
       }
     }),
   );
 
-  const hidden = new Set([...scoped.global.hiddenSkills, ...scoped.project.hiddenSkills]);
+  const hidden = new Set(scoped.project.hiddenSkillsDefined ? scoped.project.hiddenSkills : scoped.global.hiddenSkills);
   store.hiddenSkillsByCwd.set(cwd, hidden);
   store.lastHiddenSkills = hidden;
 }
@@ -204,10 +245,14 @@ function getSkillItems(pi: ExtensionAPI): SkillListItem[] {
 class SkillfulVisibilityMenu implements Component {
   private readonly cwd: string;
   private readonly skills: SkillListItem[];
-  private readonly hiddenByScope: Record<SkillfulScope, Set<string>>;
+  private readonly hiddenByScope: HiddenSkillsByScope;
+  private readonly hiddenSkillsDefinedByScope: DefinedByScope;
+  private readonly toggleSlotsByScope: ToggleSlotsByScope;
+  private readonly toggleSlotsDefinedByScope: DefinedByScope;
   private readonly theme: Theme;
   private readonly tui: TUI;
   private readonly notify: (message: string, type?: "info" | "warning" | "error") => void;
+  private readonly onToggleSlotsChanged: () => Promise<void>;
   private readonly done: () => void;
   private readonly topBorder: DynamicBorder;
   private readonly bottomBorder: DynamicBorder;
@@ -215,21 +260,17 @@ class SkillfulVisibilityMenu implements Component {
   private settingsList: SettingsList;
   private saveQueue: Promise<void> = Promise.resolve();
 
-  constructor(options: {
-    cwd: string;
-    skills: SkillListItem[];
-    hiddenByScope: Record<SkillfulScope, Set<string>>;
-    theme: Theme;
-    tui: TUI;
-    notify: (message: string, type?: "info" | "warning" | "error") => void;
-    done: () => void;
-  }) {
+  constructor(options: SkillfulVisibilityMenuOptions) {
     this.cwd = options.cwd;
     this.skills = options.skills;
     this.hiddenByScope = options.hiddenByScope;
+    this.hiddenSkillsDefinedByScope = options.hiddenSkillsDefinedByScope;
+    this.toggleSlotsByScope = options.toggleSlotsByScope;
+    this.toggleSlotsDefinedByScope = options.toggleSlotsDefinedByScope;
     this.theme = options.theme;
     this.tui = options.tui;
     this.notify = options.notify;
+    this.onToggleSlotsChanged = options.onToggleSlotsChanged;
     this.done = options.done;
     this.topBorder = new DynamicBorder((text: string) => this.theme.fg("accent", text));
     this.bottomBorder = new DynamicBorder((text: string) => this.theme.fg("accent", text));
@@ -244,7 +285,7 @@ class SkillfulVisibilityMenu implements Component {
       "",
       ...this.settingsList.render(width),
       "",
-      truncateToWidth(this.theme.fg("dim", "  Tab/←/→ switch global/project · Enter/Space toggle · Esc close"), width),
+      truncateToWidth(this.theme.fg("dim", "  Tab/←/→ switch scope · 1-9 assign/clear toggle · Enter/Space on/off · Esc close"), width),
       ...this.bottomBorder.render(width),
     ];
   }
@@ -256,6 +297,10 @@ class SkillfulVisibilityMenu implements Component {
     }
     if (matchesKey(data, Key.shift(Key.tab)) || matchesKey(data, Key.left)) {
       this.switchScope(-1);
+      return;
+    }
+    if (/^[1-9]$/.test(data)) {
+      this.toggleSelectedSkillSlot(data as SkillToggleSlot);
       return;
     }
 
@@ -289,13 +334,13 @@ class SkillfulVisibilityMenu implements Component {
 
   private createSettingsList(): SettingsList {
     const items: SettingItem[] = this.skills.map((skill) => {
-      const hidden = this.hiddenByScope[this.scope].has(skill.name);
+      const hidden = this.isHidden(this.scope, skill.name);
       return {
         id: skill.name,
         label: skill.name,
-        description: skill.description || "No skill description provided.",
-        currentValue: hidden ? "off" : "on",
-        values: ["on", "off"],
+        description: `${skill.description || "No skill description provided."}\nPress 1-9 to assign or clear this skill's toggle slot in the ${this.scope} scope.`,
+        currentValue: this.skillValue(skill.name, hidden),
+        values: [this.skillValue(skill.name, false), this.skillValue(skill.name, true)],
       };
     });
 
@@ -303,27 +348,169 @@ class SkillfulVisibilityMenu implements Component {
       items,
       12,
       getSettingsListTheme(),
-      (skillName, newValue) => {
-        const hidden = this.hiddenByScope[this.scope];
-        if (newValue === "off") hidden.add(skillName);
-        else hidden.delete(skillName);
+      (id, newValue) => {
+        this.setHidden(this.scope, id, newValue.includes("off"));
+        this.settingsList.updateValue(id, this.skillValue(id, this.isHidden(this.scope, id)));
         this.persistScope(this.scope);
       },
-      this.done,
+      () => this.close(),
       { enableSearch: true },
     );
   }
 
+  private isHidden(scope: SkillfulScope, skillName: string): boolean {
+    if (scope === "project" && !this.hiddenSkillsDefinedByScope.project) return this.hiddenByScope.global.has(skillName);
+    return this.hiddenByScope[scope].has(skillName);
+  }
+
+  private setHidden(scope: SkillfulScope, skillName: string, hidden: boolean): void {
+    const hiddenSkills = scope === "project" ? this.ensureFullProjectOverride().hiddenSkills : this.ensureWritableHiddenSkills(scope);
+    if (hidden) hiddenSkills.add(skillName);
+    else hiddenSkills.delete(skillName);
+  }
+
+  private ensureWritableHiddenSkills(scope: SkillfulScope): Set<string> {
+    if (scope === "global") this.hiddenSkillsDefinedByScope.global = true;
+    return this.hiddenByScope[scope];
+  }
+
+  private ensureFullProjectOverride(): { hiddenSkills: Set<string>; toggleSlots: Partial<Record<SkillToggleSlot, string>> } {
+    if (!this.hiddenSkillsDefinedByScope.project) {
+      this.hiddenByScope.project = new Set(this.hiddenByScope.global);
+      this.hiddenSkillsDefinedByScope.project = true;
+    }
+    if (!this.toggleSlotsDefinedByScope.project) {
+      this.toggleSlotsByScope.project = { ...this.toggleSlotsByScope.global };
+      this.toggleSlotsDefinedByScope.project = true;
+    }
+    return { hiddenSkills: this.hiddenByScope.project, toggleSlots: this.toggleSlotsByScope.project };
+  }
+
+  private skillValue(skillName: string, hidden: boolean): string {
+    const slot = SKILL_TOGGLE_SLOTS.find((candidate) => this.currentToggleSlots()[candidate] === skillName) ?? "";
+    const status = (hidden ? "off" : "on").padEnd(3, " ");
+    const statusText = this.isProjectOverride(skillName) ? this.theme.fg("accent", status) : status;
+    return `${statusText}   ${slot}`;
+  }
+
+  private currentToggleSlots(): Partial<Record<SkillToggleSlot, string>> {
+    if (this.scope === "project" && !this.toggleSlotsDefinedByScope.project) return this.toggleSlotsByScope.global;
+    return this.toggleSlotsByScope[this.scope];
+  }
+
+  private ensureWritableToggleSlots(scope: SkillfulScope): Partial<Record<SkillToggleSlot, string>> {
+    if (scope === "project") return this.ensureFullProjectOverride().toggleSlots;
+    this.toggleSlotsDefinedByScope.global = true;
+    return this.toggleSlotsByScope.global;
+  }
+
+  private isProjectOverride(skillName: string): boolean {
+    if (this.scope !== "project") return false;
+    return this.isHidden("project", skillName) !== this.isHidden("global", skillName);
+  }
+
+  private toggleSelectedSkillSlot(slot: SkillToggleSlot): void {
+    const skillName = this.selectedSkillName();
+    if (!skillName) return;
+
+    const toggleSlots = this.ensureWritableToggleSlots(this.scope);
+    const affected = new Set<string>([skillName]);
+    const previousSkill = toggleSlots[slot];
+    if (previousSkill) affected.add(previousSkill);
+
+    if (previousSkill === skillName) {
+      delete toggleSlots[slot];
+    } else {
+      for (const candidate of SKILL_TOGGLE_SLOTS) {
+        if (toggleSlots[candidate] === skillName) delete toggleSlots[candidate];
+      }
+      toggleSlots[slot] = skillName;
+    }
+
+    for (const affectedSkill of affected) {
+      this.settingsList.updateValue(affectedSkill, this.skillValue(affectedSkill, this.isHidden(this.scope, affectedSkill)));
+    }
+    this.persistToggleSlots(this.scope);
+    this.tui.requestRender();
+  }
+
+  private selectedSkillName(): string | undefined {
+    const list = this.settingsList as unknown as SettingsListSelectionView;
+    if (list.submenuComponent) return undefined;
+    const items = list.filteredItems ?? list.items ?? [];
+    const selectedIndex = list.selectedIndex ?? 0;
+    return items[selectedIndex]?.id;
+  }
+
   private persistScope(scope: SkillfulScope): void {
-    const snapshot = normalizeSkillNames(this.hiddenByScope[scope]);
+    const hiddenSnapshot = normalizeSkillNames(this.hiddenByScope[scope]);
     this.saveQueue = this.saveQueue
       .catch(() => undefined)
       .then(async () => {
-        await writeHiddenSkills(scope, this.cwd, snapshot);
+        if (scope === "project") await this.writeProjectOverrideOrInheritance();
+        else await writeHiddenSkills(scope, this.cwd, hiddenSnapshot);
         await refreshHiddenSkillCache(this.cwd);
       })
       .catch((error) => {
         this.notify(`Failed to save ${scope} skill visibility: ${error instanceof Error ? error.message : String(error)}`, "error");
       });
   }
+
+  private persistToggleSlots(scope: SkillfulScope): void {
+    const snapshot = { ...this.toggleSlotsByScope[scope] };
+    this.saveQueue = this.saveQueue
+      .catch(() => undefined)
+      .then(async () => {
+        if (scope === "project") await this.writeProjectOverrideOrInheritance();
+        else await writeToggleSlots(scope, this.cwd, snapshot);
+      })
+      .catch((error) => {
+        this.notify(`Failed to save ${scope} skill toggles: ${error instanceof Error ? error.message : String(error)}`, "error");
+      });
+  }
+
+  private close(): void {
+    this.saveQueue = this.saveQueue
+      .catch(() => undefined)
+      .then(() => this.onToggleSlotsChanged())
+      .catch((error) => {
+        this.notify(`Failed to refresh session skill toggles: ${error instanceof Error ? error.message : String(error)}`, "error");
+      })
+      .finally(() => this.done());
+  }
+
+  private async writeProjectOverrideOrInheritance(): Promise<void> {
+    if (this.projectMatchesGlobal()) {
+      this.hiddenSkillsDefinedByScope.project = false;
+      this.toggleSlotsDefinedByScope.project = false;
+      await writeProjectSkillfulOverride(this.cwd, undefined, undefined);
+      return;
+    }
+
+    this.hiddenSkillsDefinedByScope.project = true;
+    this.toggleSlotsDefinedByScope.project = true;
+    await writeProjectSkillfulOverride(this.cwd, this.hiddenByScope.project, this.toggleSlotsByScope.project);
+  }
+
+  private projectMatchesGlobal(): boolean {
+    return setsEqual(this.hiddenByScope.project, this.hiddenByScope.global) && toggleSlotsEqual(this.toggleSlotsByScope.project, this.toggleSlotsByScope.global);
+  }
+}
+
+function setsEqual(a: Set<string>, b: Set<string>): boolean {
+  if (a.size !== b.size) return false;
+  for (const value of a) {
+    if (!b.has(value)) return false;
+  }
+  return true;
+}
+
+function toggleSlotsEqual(
+  a: Partial<Record<SkillToggleSlot, string>>,
+  b: Partial<Record<SkillToggleSlot, string>>,
+): boolean {
+  for (const slot of SKILL_TOGGLE_SLOTS) {
+    if (a[slot] !== b[slot]) return false;
+  }
+  return true;
 }

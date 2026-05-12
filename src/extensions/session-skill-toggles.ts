@@ -64,12 +64,7 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
 
   pi.on("session_start", async (event, ctx) => {
     const settings = await readEffectiveSkillfulSettings(ctx.cwd);
-    const loadedSkillNames = new Set(listLoadedSkills(pi.getCommands()).map((s) => s.name));
-    const slots = SKILL_TOGGLE_SLOTS.flatMap((slot): ToggleSlotState[] => {
-      const skillName = settings.toggleSlots[slot];
-      if (!skillName || !loadedSkillNames.has(skillName)) return [];
-      return [{ slot, skillName }];
-    });
+    const slots = configuredToggleSlots(pi, settings.toggleSlots);
 
     const preservedActiveBySkill =
       event.reason === "new" && store.preservedNewSessionActiveBySkill?.cwd === ctx.cwd
@@ -138,6 +133,43 @@ function createEmptyState(): SessionToggleState {
 
 export function hasActiveSessionSkillToggles(): boolean {
   return state.slots.length > 0;
+}
+
+export async function refreshSessionSkillToggles(pi: ExtensionAPI, cwd: string, ui: SkillfulUi): Promise<void> {
+  const settings = await readEffectiveSkillfulSettings(cwd);
+  const slots = configuredToggleSlots(pi, settings.toggleSlots);
+
+  const previousActiveBySkill = state.activeBySkill;
+  state.modifier = settings.toggleModifier;
+  state.hiddenSkills = settings.hiddenSkillSet;
+  state.slots = slots;
+  state.activeBySkill = new Map(
+    slots.map(({ skillName }) => [skillName, previousActiveBySkill.get(skillName) ?? !settings.hiddenSkillSet.has(skillName)]),
+  );
+
+  if (slots.length > 0 && !state.installedEditor && !state.installedWidget) {
+    installEditor(ui);
+  } else if (slots.length === 0) {
+    if (state.installedEditor) ui.setEditorComponent(state.previousEditorFactory);
+    if (state.installedWidget) ui.setWidget(WIDGET_KEY, undefined);
+    state.installedEditor = false;
+    state.installedWidget = false;
+    state.previousEditorFactory = undefined;
+  }
+
+  refreshUi();
+}
+
+function configuredToggleSlots(
+  pi: ExtensionAPI,
+  toggleSlots: Partial<Record<SkillToggleSlot, string>>,
+): ToggleSlotState[] {
+  const loadedSkillNames = new Set(listLoadedSkills(pi.getCommands()).map((skill) => skill.name));
+  return SKILL_TOGGLE_SLOTS.flatMap((slot): ToggleSlotState[] => {
+    const skillName = toggleSlots[slot];
+    if (!skillName || !loadedSkillNames.has(skillName)) return [];
+    return [{ slot, skillName }];
+  });
 }
 
 function isSkillActive(skillName: string): boolean {

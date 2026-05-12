@@ -6,6 +6,13 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-05-12
+
+### Changed
+
+- Made project skill visibility and toggle slots inherit global settings until the project scope is explicitly changed.
+- Added `/skillful` menu support for assigning session toggle slots in global or project scope.
+
 ## [0.3.5] - 2026-05-12
 
 ### Fixed

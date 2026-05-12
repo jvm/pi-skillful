@@ -52,7 +52,7 @@ Supported scopes:
 - Global: `~/.pi/agent/settings.json`
 - Project: `.pi/settings.json`
 
-Effective hidden skills are the union of global and project `hiddenSkills`.
+Project visibility and toggle slots inherit global settings until changed in the Project tab. When either is changed, Pi Skillful writes a full project override containing both `hiddenSkills` and `toggleSlots`. If the project state is changed back to match global, those project override keys are removed so the project inherits global again.
 
 Open the menu with:
 
@@ -60,7 +60,7 @@ Open the menu with:
 /skillful
 ```
 
-The menu lists all loaded skills alphabetically. Toggle a skill off to save it in the active scope's `hiddenSkills` list. Use the Global/Project tabs to choose which settings file to edit.
+The menu lists all loaded skills alphabetically. Toggle a skill off or on in the active scope. Use the Global/Project tabs to choose which settings file to edit. In the Project tab, inherited on/off values are shown normally; project overrides are highlighted. Press `1` through `9` on a selected skill to assign or clear that scope's session toggle slot. Visibility and toggle slots are independent.
 
 Pi's startup `[Skills]` list also highlights hidden skills in the error color (red in the default dark theme).
 
@@ -84,7 +84,7 @@ Assign skills to up to nine prompt-editor slots with JSON settings:
 }
 ```
 
-Configured slots appear on the prompt editor's top border as `N skill-name`. Long names are truncated per slot when needed so all configured slot numbers remain visible. Active slots use the theme accent color; inactive slots use the muted color. Press `alt+1` through `alt+9` by default to toggle a slot for the current session only.
+Configured slots appear on the prompt editor's top border as `N skill-name`. Project `toggleSlots`, when defined as part of a project override, replace global `toggleSlots`; otherwise global slots are used and shown in the Project tab. Long names are truncated per slot when needed so all configured slot numbers remain visible. Active slots use the theme accent color; inactive slots use the muted color. Press `alt+1` through `alt+9` by default to toggle a slot for the current session only.
 
 `toggleModifier` defaults to `"alt"`. Supported values are `"alt"`, `"ctrl"`, `"ctrl+shift"`, `"alt+shift"`, `"ctrl+alt"`, and `"ctrl+alt+shift"`. Change it if your terminal reserves `alt+number` shortcuts.
 
