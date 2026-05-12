@@ -14,6 +14,7 @@ import { replaceSkillsSection } from "../skill-prompt.js";
 import { listLoadedSkills } from "../skills.js";
 
 const WIDGET_KEY = "pi-skillful-session-toggles";
+const STORE_KEY = Symbol.for("pi-skillful.sessionSkillTogglesStore");
 const BORDER_PREFIX = "─── ";
 const BORDER_SUFFIX = " ";
 const BORDER_PREFIX_WIDTH = visibleWidth(BORDER_PREFIX);
@@ -38,8 +39,15 @@ interface SessionToggleState {
   theme: Theme | undefined;
 }
 
+interface SessionToggleStore {
+  preservedNewSessionActiveBySkill: { cwd: string; activeBySkill: Map<string, boolean> } | undefined;
+}
+
+const store = (((globalThis as Record<PropertyKey, unknown>)[STORE_KEY] as SessionToggleStore | undefined) ??= {
+  preservedNewSessionActiveBySkill: undefined,
+}) as SessionToggleStore;
+
 let state: SessionToggleState = createEmptyState();
-let preservedNewSessionActiveBySkill: { cwd: string; activeBySkill: Map<string, boolean> } | undefined;
 
 export default function sessionSkillToggles(pi: ExtensionAPI) {
   for (const modifier of SUPPORTED_TOGGLE_MODIFIERS) {
@@ -64,10 +72,10 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
     });
 
     const preservedActiveBySkill =
-      event.reason === "new" && preservedNewSessionActiveBySkill?.cwd === ctx.cwd
-        ? preservedNewSessionActiveBySkill.activeBySkill
+      event.reason === "new" && store.preservedNewSessionActiveBySkill?.cwd === ctx.cwd
+        ? store.preservedNewSessionActiveBySkill.activeBySkill
         : undefined;
-    preservedNewSessionActiveBySkill = undefined;
+    store.preservedNewSessionActiveBySkill = undefined;
 
     state = {
       cwd: ctx.cwd,
@@ -107,7 +115,7 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
   pi.on("session_shutdown", (event, ctx) => {
     if (state.installedEditor) ctx.ui.setEditorComponent(state.previousEditorFactory);
     if (state.installedWidget) ctx.ui.setWidget(WIDGET_KEY, undefined);
-    preservedNewSessionActiveBySkill =
+    store.preservedNewSessionActiveBySkill =
       event.reason === "new" ? { cwd: state.cwd, activeBySkill: new Map(state.activeBySkill) } : undefined;
     state = createEmptyState();
   });

@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-05-12
+
+### Fixed
+
+- Fixed preserving session skill toggle state across `/new` after Pi reloads extension instances.
+
 ## [0.3.4] - 2026-05-12
 
 ### Changed
