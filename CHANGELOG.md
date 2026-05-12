@@ -6,6 +6,12 @@ This project follows the spirit of [Keep a Changelog](https://keepachangelog.com
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-05-12
+
+### Changed
+
+- Preserve session skill toggle state across `/new` within the same Pi process.
+
 ## [0.3.3] - 2026-05-12
 
 ### Fixed

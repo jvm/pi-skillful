@@ -39,6 +39,7 @@ interface SessionToggleState {
 }
 
 let state: SessionToggleState = createEmptyState();
+let preservedNewSessionActiveBySkill: { cwd: string; activeBySkill: Map<string, boolean> } | undefined;
 
 export default function sessionSkillToggles(pi: ExtensionAPI) {
   for (const modifier of SUPPORTED_TOGGLE_MODIFIERS) {
@@ -53,7 +54,7 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
     }
   }
 
-  pi.on("session_start", async (_event, ctx) => {
+  pi.on("session_start", async (event, ctx) => {
     const settings = await readEffectiveSkillfulSettings(ctx.cwd);
     const loadedSkillNames = new Set(listLoadedSkills(pi.getCommands()).map((s) => s.name));
     const slots = SKILL_TOGGLE_SLOTS.flatMap((slot): ToggleSlotState[] => {
@@ -62,12 +63,23 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
       return [{ slot, skillName }];
     });
 
+    const preservedActiveBySkill =
+      event.reason === "new" && preservedNewSessionActiveBySkill?.cwd === ctx.cwd
+        ? preservedNewSessionActiveBySkill.activeBySkill
+        : undefined;
+    preservedNewSessionActiveBySkill = undefined;
+
     state = {
       cwd: ctx.cwd,
       modifier: settings.toggleModifier,
       hiddenSkills: settings.hiddenSkillSet,
       slots,
-      activeBySkill: new Map(slots.map(({ skillName }) => [skillName, !settings.hiddenSkillSet.has(skillName)])),
+      activeBySkill: new Map(
+        slots.map(({ skillName }) => [
+          skillName,
+          preservedActiveBySkill?.get(skillName) ?? !settings.hiddenSkillSet.has(skillName),
+        ]),
+      ),
       installedEditor: false,
       installedWidget: false,
       previousEditorFactory: undefined,
@@ -92,9 +104,11 @@ export default function sessionSkillToggles(pi: ExtensionAPI) {
     return { systemPrompt };
   });
 
-  pi.on("session_shutdown", (_event, ctx) => {
+  pi.on("session_shutdown", (event, ctx) => {
     if (state.installedEditor) ctx.ui.setEditorComponent(state.previousEditorFactory);
     if (state.installedWidget) ctx.ui.setWidget(WIDGET_KEY, undefined);
+    preservedNewSessionActiveBySkill =
+      event.reason === "new" ? { cwd: state.cwd, activeBySkill: new Map(state.activeBySkill) } : undefined;
     state = createEmptyState();
   });
 }

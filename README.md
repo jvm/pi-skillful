@@ -88,7 +88,7 @@ Configured slots appear on the prompt editor's top border as `N skill-name`. Lon
 
 `toggleModifier` defaults to `"alt"`. Supported values are `"alt"`, `"ctrl"`, `"ctrl+shift"`, `"alt+shift"`, `"ctrl+alt"`, and `"ctrl+alt+shift"`. Change it if your terminal reserves `alt+number` shortcuts.
 
-On session start, non-hidden skills are active and hidden skills are inactive. Starting, resuming, or forking a session resets toggle state from settings. Inline `/skill:name` invocation remains explicit and works even when that skill is inactive.
+On app startup, non-hidden skills are active and hidden skills are inactive. Within a running Pi process, `/new` preserves the current toggle state for the new session. Resuming, forking, cloning, reloading, or restarting Pi resets toggle state from settings. Inline `/skill:name` invocation remains explicit and works even when that skill is inactive.
 
 ## Installation
 
