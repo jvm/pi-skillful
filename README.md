@@ -1,3 +1,7 @@
+> [!IMPORTANT]
+> This repository has moved to [`jvm/pi-mono`](https://github.com/jvm/pi-mono/tree/main/packages/pi-skillful). It is archived and no longer maintained here.
+> Please file issues and pull requests in [`jvm/pi-mono`](https://github.com/jvm/pi-mono).
+
 <p>
   <img src="https://raw.githubusercontent.com/jvm/pi-skillful/main/banner.png" alt="pi-skillful" width="1100">
 </p>
